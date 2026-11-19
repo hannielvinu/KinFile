@@ -47,6 +47,7 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
     before: { contentText: '+', color: new vscode.ThemeColor('gitDecoration.addedResourceForeground'), margin: '0 6px 0 0' },
   });
   private disposables: vscode.Disposable[] = [];
+  private rerender?: ReturnType<typeof setTimeout>;
   private status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   readonly onJournalChange = new vscode.EventEmitter<string | undefined>();
 
@@ -55,6 +56,15 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
       vscode.workspace.registerTextDocumentContentProvider(REVIEW_SCHEME, this),
       vscode.languages.registerCodeLensProvider({ scheme: REVIEW_SCHEME }, this),
       vscode.window.onDidChangeVisibleTextEditors(() => this.decorateAll()),
+      // Keep an open review in sync if the real file changes underneath it (e.g. Undo, or the user types).
+      vscode.workspace.onDidChangeTextDocument(e => {
+        if (e.document.uri.scheme !== 'file') return;
+        for (const item of this.items.values()) {
+          if (item.realUri.fsPath !== e.document.uri.fsPath) continue;
+          clearTimeout(this.rerender);
+          this.rerender = setTimeout(async () => { if ((await this.render(item)).length === 0) this.finish(item); this.updateStatus(); }, 150);
+        }
+      }),
       vscode.commands.registerCommand('kinfile.acceptHunk', (k: string, line: number) => this.decide(k, line, true)),
       vscode.commands.registerCommand('kinfile.rejectHunk', (k: string, line: number) => this.decide(k, line, false)),
       vscode.commands.registerCommand('kinfile.acceptAll', (k?: string) => this.decideAll(k, true)),
