@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kinfile: TrueFoundry Forge-a-thon Round 1 write-up</title>
+<style>
+  @page { size: A4; margin: 13mm 14mm 12mm; }
+  :root { --ink: #16181d; --muted: #5b6270; --line: #d9dde5; --accent: #2457d6; --kin: #1f8a4c; --soft: #f3f6fb; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); font-size: 9.6pt; line-height: 1.38; margin: 0; }
+  h1 { font-size: 17pt; margin: 0; letter-spacing: -.2px; }
+  .sub { color: var(--muted); margin: 2px 0 8px; font-size: 9.4pt; }
+  h2 { font-size: 11.2pt; margin: 10px 0 4px; padding-bottom: 2px; border-bottom: 1.5px solid var(--accent); color: var(--accent); }
+  p { margin: 3px 0 5px; }
+  ul { margin: 3px 0 5px; padding-left: 16px; }
+  li { margin: 1.5px 0; }
+  code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 8.6pt; background: var(--soft); padding: 0 3px; border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0 6px; font-size: 8.9pt; }
+  th, td { border: 1px solid var(--line); padding: 3px 5px; vertical-align: top; text-align: left; }
+  th { background: var(--soft); font-weight: 600; }
+  .ts { white-space: nowrap; font-family: "JetBrains Mono", Consolas, monospace; font-size: 8.4pt; }
+  .kin { color: var(--kin); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .diagram { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: #fff; font-size: 8.5pt; }
+  .box { border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; margin: 3px 0; background: var(--soft); }
+  .box b { color: var(--accent); }
+  .flow { display: grid; grid-template-columns: 1fr 26px 1fr; align-items: center; gap: 4px; }
+  .arrow { text-align: center; color: var(--muted); font-size: 10pt; }
+  .tag { display: inline-block; border: 1px solid var(--accent); color: var(--accent); border-radius: 10px; padding: 0 6px; margin: 1px 2px 1px 0; font-size: 8pt; }
+  .receipt { font-family: "JetBrains Mono", Consolas, monospace; font-size: 7.9pt; background: var(--soft); border-left: 3px solid var(--accent); padding: 4px 6px; margin: 4px 0; white-space: pre-wrap; }
+  .note { color: var(--muted); font-size: 8.6pt; }
+  .page-break { break-before: page; }
+</style>
+</head>
+<body>
+<h1>Kinfile: files that changed together, change together</h1>
+<div class="sub">A VS Code coding agent on TrueForge · Team ZeroBix · TrueFoundry Forge-a-thon, Techfest 2026-27, IIT Bombay · github.com/hannielvinu/KinFile</div>
+
+<h2>1. Team</h2>
+<p><b>ZeroBix</b> (Team ID TM-6299F09E3F1): <b>Hanniel Vinu</b>, team leader. GitHub: <code>hannielvinu</code>.</p>
+
+<h2>2. Starting point</h2>
+<p><b>From scratch.</b> No upstream editor project (Cline, Continue, Roo Code or opencode) was forked, so there is no fork commit to declare. All editor code is our own and is in the repository's history from the first commit. Bundled dependencies: <code>@modelcontextprotocol/sdk</code> (MIT), <code>zod</code> (MIT), <code>diff</code> (BSD-3-Clause); listed in <code>THIRD_PARTY_NOTICES.md</code>. Licence: MIT. The agent loop is TrueForge's; the extension never calls a model provider.</p>
+
+<h2>3. Architecture on TrueForge</h2>
+<div class="grid">
+<div>
+<p>The extension is a <b>TrueForge client</b> over its HTTP API. It creates a session per request from the agent spec in <code>src/core/agentSpec.ts</code> (exported to <code>agent/kinfile.agent.json</code>), posts a turn and renders the SSE events (<code>model.message.delta</code>, tool calls, <code>thread.created</code>, compaction, <code>turn.done</code>). Stop calls <code>POST /sessions/{id}/cancel</code>.</p>
+<p><b>Editor capabilities are MCP tools.</b> The extension runs an MCP server, <code>kinfile-editor</code>, on <code>127.0.0.1</code> and registers it in TrueForge: <code>read_file</code>, <code>search_code</code>, <code>related_files</code>, <code>find_symbol</code>, <code>list_files</code>, <code>propose_edit</code>, <code>create_file</code>, <code>run_command</code>. The agent decides what to read and change.</p>
+<p><b>Tool approval drives the diff review.</b> The three write/run tools are in <code>require_approval_for_tools</code>. On <code>tool.approval_required</code>, Kinfile reads the paused call's arguments, stages the proposal in memory and opens the hunk review. The user accepts or rejects each hunk; only accepted hunks are written, as one undoable edit. Kinfile then answers <code>user.tool_approval</code>. An invalid edit (e.g. <code>old_string</code> not found) is denied with the reason, so the model corrects itself.</p>
+</div>
+<div class="diagram">
+  <div class="flow">
+    <div class="box"><b>VS Code · Kinfile</b><br>panel + inline edit<br>Context Receipt<br>Relay (fallback)<br>hunk review + undo</div>
+    <div class="arrow">⇄<br><span class="note">HTTP<br>SSE</span></div>
+    <div class="box"><b>TrueForge (local)</b><br>sessions · turns<br>agent loop<br>tool approval<br>subagent "scout"</div>
+  </div>
+  <div class="flow">
+    <div class="box"><b>MCP: kinfile-editor</b><br>read · search · related<br>symbol · propose · run</div>
+    <div class="arrow">⇠<br><span class="note">MCP</span></div>
+    <div class="box"><b>Context features</b><br>deferred tool loading<br>compaction @ 60k tokens<br>large-tool-response offload</div>
+  </div>
+  <p class="note" style="margin-top:4px">Harness features used, all visible in the TrueForge session:
+  <span class="tag">sessions/turns</span><span class="tag">MCP tools</span><span class="tag">tool approval</span><span class="tag">subagents</span><span class="tag">deferred tool loading</span><span class="tag">compaction</span></p>
+</div>
+</div>
+<p><b>Why these features.</b> A <b>scout subagent</b> explores (related files, search, symbols) in its own thread and returns a short file list, so the main thread's context holds the plan, not the search noise. <b>Deferred tool loading</b> keeps only four core tools in the prompt; the long tail (<code>run_command</code>, <code>create_file</code>, <code>find_symbol</code>, <code>list_files</code>) is discovered through <code>list_tools</code>/<code>call_tool</code> when needed. <b>Compaction</b> (trigger 60k input tokens) keeps long agent runs inside any model's window.</p>
+
+<h2>4. How context is selected</h2>
+<p>Every request gets an automatic <b>Context Receipt</b>. Each text file in the repository is scored with four repo-agnostic signals:</p>
+<ul>
+<li><b>Text:</b> BM25-style term match over contents, plus path-segment match weighted by how rare the term is among paths (so <code>flask</code>, which is in every path, counts for ~0).</li>
+<li><b>Symbols:</b> definitions matching the request (regex index for Python/TS/JS/Go/Rust/Java). This brings in the closest existing example to copy, e.g. <code>routes_command</code>.</li>
+<li><span class="kin">Kin (git co-change):</span> for the top three source files, files that changed in the same commits (last 3,000 commits; renames followed; commits touching more than 40 files ignored). Measured on Flask 3.1.3: <code>src/flask/cli.py</code> changed in 172 commits, with <code>tests/test_cli.py</code> in 52 and <code>docs/cli.rst</code> in 19. These are exactly the test and docs Task B needs, found without the user naming them.</li>
+<li><b>Test pairing:</b> <code>test_&lt;name&gt;</code> files for the top source files.</li>
+</ul>
+<p><b>Budget:</b> 32,000 tokens by default (setting <code>kinfile.contextBudgetTokens</code>). The anchor file is packed first. A file may use at most 25% of the budget (prose 12.5%). Small files go in whole; large ones as a symbol outline plus line windows around the matches. <code>@file</code> and <code>@Symbol</code> mentions are always included. Every chosen file is listed with its reasons and token cost, and left-out files are listed too. Actual receipt for Task B (index 0.2 s once, selection about 40 ms):</p>
+<div class="receipt">31,821 / 32,000 tokens · 7 files from 218 · 2,408 commits indexed
+1 src/flask/cli.py      7,409 tok excerpt  anchor file; path matches "cli"; defines get_command…
+2 tests/test_cli.py     5,943 tok full     changed together with cli.py in 52 of its 172 commits; test file for cli.py
+3 CHANGES.rst           3,727 tok excerpt  changed together with cli.py in 52 of its 172 commits
+6 docs/cli.rst          3,647 tok excerpt  changed together with cli.py in 19 of its 172 commits</div>
+<p>The agent still has its tools for anything else, and <code>related_files</code> gives it the same co-change data on demand.</p>
+
+<h2>5. Model setup</h2>
+<table>
+<tr><th>Role</th><th>Model (TrueForge name)</th><th>Where it ran</th><th>Approx. cost</th></tr>
+<tr><td>Primary</td><td><code>google-gemini/gemini-3-5-flash</code> (Gemini provider in TrueForge)</td><td>Google AI Studio API, free tier</td><td>$0 (free tier)</td></tr>
+<tr><td>Fallback (Relay)</td><td><code>groq/gpt-oss-120b</code> (custom OpenAI-compatible provider)</td><td>Groq API, free tier</td><td>$0 (free tier)</td></tr>
+<tr><td>Harness</td><td>TrueForge local mode (<code>npx @truefoundry/trueforge</code>)</td><td>Our laptop, SQLite</td><td>$0</td></tr>
+</table>
+<p><b>Switching models:</b> providers live only in TrueForge (<code>npm run setup</code> loads them from a git-ignored <code>config/trueforge.local.json</code>; an example file is committed, keys never). The VS Code setting <code>kinfile.models</code> is the ordered fallback list; if it is empty, every model configured in TrueForge is used in order. Nothing in the code names a provider. <b>Relay:</b> a failed turn (provider error, bad key, unreachable endpoint, or no event within 45 s) is retried once after 1.5 s, then rerun on the next model automatically, with a notice. A failed model cools down for 5 minutes. Fallback happens only before any change was accepted, so the workspace is never half-changed.</p>
+
+<h2>6. Scorecard</h2>
+<table>
+<tr><th>Criterion</th><th>Video</th><th>Claim</th></tr>
+<tr><td>A1 Inline edit</td><td class="ts">0:12–0:50</td><td>Diff rendered in the editor; Accept/Reject on each of the 2 hunks; verified <code>False</code>.</td></tr>
+<tr><td>A2 Agent mode</td><td class="ts">1:05–2:45</td><td>One request; the agent finds and edits <code>cli.py</code>, <code>tests/test_cli.py</code> and <code>docs/cli.rst</code> unprompted; <code>pytest tests/test_cli.py -q</code> passes.</td></tr>
+<tr><td>A3 Streaming + cancel</td><td class="ts">0:15, 1:10, 3:40–3:55</td><td>Tokens stream live; Stop cancels the TrueForge turn at once; unreviewed hunks are discarded; <code>git status</code> clean.</td></tr>
+<tr><td>B1 Context assembly</td><td class="ts">1:10–1:25</td><td>Context Receipt: files, the reason for each (including "changed together with cli.py in 19 of its 172 commits"), tokens used / 32k budget.</td></tr>
+<tr><td>B2 Diff safety</td><td class="ts">0:30–1:00</td><td>Per-hunk review; nothing written before Accept; an applied hunk undone on screen (Ctrl+Alt+Z).</td></tr>
+<tr><td>B3 Resilience</td><td class="ts">3:00–3:40</td><td>Primary key invalid → retry → automatic switch to the second model with no user action; editor responsive; <code>git status</code> shows no change.</td></tr>
+<tr><td>B4 TrueForge depth</td><td class="ts">1:25–1:40, 2:45–3:00</td><td>MCP tools; approval events open the hunk review; scout subagent thread, deferred <code>call_tool</code> and tool calls visible in the TrueForge session.</td></tr>
+<tr><td>C1 Video</td><td class="ts">0:00–3:58</td><td>Tasks A, B, C in order, each verified on screen.</td></tr>
+<tr><td>C2 Write-up</td><td class="ts">—</td><td>This document: architecture, context strategy with measured numbers, model setup, trade-offs, limitations.</td></tr>
+</table>
+
+<h2>7. Tools used</h2>
+<p>TypeScript, VS Code Extension API, TrueForge (local mode), Model Context Protocol SDK, esbuild, Node's test runner, git. AI coding assistant: <b>Claude Code</b> (Anthropic) helped write and test parts of the code and documentation. We tested the extension end to end against a local TrueForge, including inside VS Code under a virtual display.</p>
+
+<h2>8. Known limitations</h2>
+<ul>
+<li>Co-change needs git history; on a new repository Kinfile falls back to the text, symbol and test signals. Co-change is a strong hint, not proof of a dependency, which is why the receipt shows the counts.</li>
+<li>The symbol index is regex-based (fast, no native dependencies); it can miss unusual definitions. Edits use exact search/replace with a whitespace-tolerant fallback.</li>
+<li>If a model fails <i>after</i> some hunks were accepted, Kinfile stops with a clear message instead of switching models mid-change.</li>
+<li>Code Mode and Skills are unused: they need TrueForge's sandbox, which is optional for the fixed tasks.</li>
+<li><b>With another month:</b> tree-sitter symbols and a call graph as a fifth signal; learn signal weights from each repository's own history (replay past commits and measure recall); a "related tests" runner after each accepted hunk; upstream a model-fallback chain and approval-with-edited-arguments to TrueForge itself.</li>
+</ul>
+</body>
+</html>
