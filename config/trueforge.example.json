@@ -1,0 +1,22 @@
+{
+  "trueforgeUrl": "http://localhost:8790",
+  "models": ["google-gemini/gemini-3-5-flash", "groq/gpt-oss-120b"],
+  "providers": [
+    {
+      "type": "google-gemini",
+      "auth": { "api_key": "$GEMINI_API_KEY" },
+      "models": [
+        { "model_id": "gemini-3.5-flash", "name": "gemini-3-5-flash", "properties": { "context_length": 1048576, "max_output_tokens": 65536 } }
+      ]
+    },
+    {
+      "type": "custom",
+      "name": "groq",
+      "base_url": "https://api.groq.com/openai/v1",
+      "auth": { "api_key": "$GROQ_API_KEY" },
+      "models": [
+        { "model_id": "openai/gpt-oss-120b", "name": "gpt-oss-120b", "properties": { "context_length": 131072, "max_output_tokens": 32768 } }
+      ]
+    }
+  ]
+}

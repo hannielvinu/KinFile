@@ -1,0 +1,25 @@
+{
+  "name": "kinfile-inline",
+  "description": "Kinfile inline edit: rewrite the selected region; no tools.",
+  "manifest": {
+    "model": {
+      "name": "google-gemini/gemini-3-5-flash",
+      "params": {
+        "temperature": 0
+      }
+    },
+    "instructions": "You rewrite a selected region of code according to an instruction.\nReply with ONLY the complete replacement for the selected region, inside one fenced code block. Keep the original indentation and everything the instruction does not ask you to change. No explanations.",
+    "config": {
+      "iteration_limit": 2,
+      "dynamic_sub_agents": {
+        "enabled": false
+      },
+      "generative_ui": {
+        "enabled": false
+      },
+      "ask_user_questions": {
+        "enabled": false
+      }
+    }
+  }
+}
