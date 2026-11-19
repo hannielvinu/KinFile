@@ -1,0 +1,167 @@
+{
+  "name": "kinfile",
+  "displayName": "Kinfile",
+  "description": "Editor-native coding agent on TrueForge. Finds the files a change needs from your git history, shows why, and lets you review every hunk.",
+  "version": "0.1.0",
+  "publisher": "zerobix",
+  "license": "MIT",
+  "author": "Hanniel Vinu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hannielvinu/KinFile.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kinfile",
+          "title": "Kinfile",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "kinfile": [
+        {
+          "type": "webview",
+          "id": "kinfile.agent",
+          "name": "Agent"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kinfile.inlineEdit",
+        "title": "Kinfile: Edit Selection"
+      },
+      {
+        "command": "kinfile.openAgent",
+        "title": "Kinfile: Open Agent Panel"
+      },
+      {
+        "command": "kinfile.stop",
+        "title": "Kinfile: Stop"
+      },
+      {
+        "command": "kinfile.acceptAll",
+        "title": "Kinfile: Accept All Hunks"
+      },
+      {
+        "command": "kinfile.rejectAll",
+        "title": "Kinfile: Reject All Hunks"
+      },
+      {
+        "command": "kinfile.undoLast",
+        "title": "Kinfile: Undo Last Applied Change"
+      },
+      {
+        "command": "kinfile.showContext",
+        "title": "Kinfile: Preview Context Selection"
+      },
+      {
+        "command": "kinfile.refreshModels",
+        "title": "Kinfile: Refresh Models from TrueForge"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "kinfile.inlineEdit",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "kinfile.openAgent",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l"
+      },
+      {
+        "command": "kinfile.stop",
+        "key": "ctrl+alt+backspace",
+        "mac": "cmd+alt+backspace"
+      },
+      {
+        "command": "kinfile.undoLast",
+        "key": "ctrl+alt+z",
+        "mac": "cmd+alt+z"
+      }
+    ],
+    "configuration": {
+      "title": "Kinfile",
+      "properties": {
+        "kinfile.trueforgeUrl": {
+          "type": "string",
+          "default": "http://localhost:8790",
+          "description": "TrueForge server URL (local mode)."
+        },
+        "kinfile.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Models in fallback order, as TrueForge names them (provider/model). Empty = every model configured in TrueForge, in its order. The first is primary; the rest take over automatically on failure."
+        },
+        "kinfile.contextBudgetTokens": {
+          "type": "number",
+          "default": 32000,
+          "description": "Token budget for automatically selected context."
+        },
+        "kinfile.compactionTokens": {
+          "type": "number",
+          "default": 60000,
+          "description": "TrueForge compaction trigger (estimated input tokens)."
+        },
+        "kinfile.firstResponseTimeoutSeconds": {
+          "type": "number",
+          "default": 45,
+          "description": "If a model sends nothing within this time, Kinfile treats it as failed and falls back."
+        },
+        "kinfile.mcpPort": {
+          "type": "number",
+          "default": 8791,
+          "description": "First port to try for the local MCP server that exposes editor tools to TrueForge."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "tsc -p . --outDir out && node --test \"out/test/*.test.js\"",
+    "trueforge": "node scripts/start-trueforge.mjs",
+    "setup": "node scripts/setup-trueforge.mjs",
+    "export-agents": "tsc -p . --outDir out && node scripts/export-agents.mjs",
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "bench:flask": "tsc -p . --outDir out && node out/test/bench-flask.js",
+    "demo:break-primary": "node scripts/setup-trueforge.mjs --break-primary",
+    "demo:restore": "node scripts/setup-trueforge.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "diff": "^9.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
