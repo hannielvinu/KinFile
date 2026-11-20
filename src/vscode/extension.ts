@@ -31,12 +31,14 @@ export function activate(ctx: vscode.ExtensionContext): void {
       const q = await vscode.window.showInputBox({ prompt: 'Request to preview Kinfile context selection for' });
       if (!q) return;
       await service.index();
-      const p = service.engine.assemble(q, { budgetTokens: vscode.workspace.getConfiguration('kinfile').get('contextBudgetTokens', 32000) });
+      const p = service.engine.assemble(q, { budgetTokens: vscode.workspace.getConfiguration('kinfile').get('contextBudgetTokens', 16000) });
       await panel.show();
       panel.post({ type: 'user', text: `(context preview) ${q}` });
       panel.post({ type: 'receipt', receipt: p.receipt });
     }),
     vscode.commands.registerCommand('kinfile.refreshModels', () => panel.refreshModels()),
+    vscode.commands.registerCommand('kinfile.approveCommand', () => { panel.answerCommand(true); vscode.commands.executeCommand('setContext', 'kinfile.commandPending', false); }),
+    vscode.commands.registerCommand('kinfile.denyCommand', () => { panel.answerCommand(false); vscode.commands.executeCommand('setContext', 'kinfile.commandPending', false); }),
     vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('kinfile')) panel.refreshModels(); }),
   );
 }

@@ -79,7 +79,7 @@ code --install-extension kinfile-0.1.0.vsix
 In VS Code settings:
 
 ```json
-"kinfile.models": ["gemini/gemini-3-1-flash-lite", "groq/gpt-oss-120b"]
+"kinfile.models": ["nvidia/kimi-k3-1-pro", "gemini/gemini-3-1-flash-lite"]
 ```
 
 The first model is primary; the next ones take over automatically. If the list is empty, Kinfile uses every model configured in TrueForge, in TrueForge's order. Switching models needs no code change: edit this list, or the providers in TrueForge.

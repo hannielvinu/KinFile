@@ -56,7 +56,7 @@ export async function inlineEdit(svc: KinfileService, panel: AgentPanel, presetI
   panel.post({ type: 'user', text: `Inline edit · ${rel}:${range.start.line + 1}-${range.end.line + 1}\n${instruction}` });
   let streamed = '';
   await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Kinfile', cancellable: true }, async (progress, token) => {
-    const run = new KinfileRun(svc.tf, inlineSpec, { models, retryBackoffMs: 1500, firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 120) * 1000 }, {
+    const run = new KinfileRun(svc.tf, m => inlineSpec(m, cfg<string>('reasoningEffort', 'low') || undefined), { models, retryBackoffMs: 1500, firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 120) * 1000 }, {
       emit: (e: UiEvent) => {
         panel.post({ type: 'event', e });
         if (e.kind === 'model') progress.report({ message: `asking ${e.model}…` });
@@ -74,7 +74,9 @@ export async function inlineEdit(svc: KinfileService, panel: AgentPanel, presetI
     if (result.status === 'error') { vscode.window.showErrorMessage(`Kinfile: ${result.error ?? 'model error'}. Your files were not changed.`); return; }
 
     let replacement = matchIndent(selected, extractReplacement(result.text));
-    replacement = replacement.replace(/\n+$/, '');
+    // Keep the selection's trailing whitespace (e.g. the blank line after a function) exactly as it was.
+    const trailing = selected.match(/\s*$/)?.[0] ?? '';
+    replacement = replacement.replace(/\s+$/, '') + trailing;
     const full = doc.getText();
     const startOff = doc.offsetAt(range.start), endOff = doc.offsetAt(range.end);
     const proposed = full.slice(0, startOff) + replacement + full.slice(endOff);

@@ -74,7 +74,7 @@
 <li><span class="kin">Kin (git co-change):</span> for the top three source files, files that changed in the same commits (last 3,000 commits; renames followed; commits touching more than 40 files ignored). Measured on Flask 3.1.3: <code>src/flask/cli.py</code> changed in 172 commits, with <code>tests/test_cli.py</code> in 52 and <code>docs/cli.rst</code> in 19. These are exactly the test and docs Task B needs, found without the user naming them.</li>
 <li><b>Test pairing:</b> <code>test_&lt;name&gt;</code> files for the top source files.</li>
 </ul>
-<p><b>Budget:</b> 32,000 tokens by default (setting <code>kinfile.contextBudgetTokens</code>). The anchor file is packed first. A file may use at most 25% of the budget (prose 12.5%). Small files go in whole; large ones as a symbol outline plus line windows around the matches. <code>@file</code> and <code>@Symbol</code> mentions are always included. Every chosen file is listed with its reasons and token cost, and left-out files are listed too. Actual receipt for Task B (index 0.2 s once, selection about 40 ms):</p>
+<p><b>Budget:</b> 16,000 tokens by default, 12,000 in the recorded demo (setting <code>kinfile.contextBudgetTokens</code>). The anchor file is packed first. A file may use at most 25% of the budget (prose 12.5%). Small files go in whole; large ones as a symbol outline plus line windows around the matches. <code>@file</code> and <code>@Symbol</code> mentions are always included. Every chosen file is listed with its reasons and token cost, and left-out files are listed too. Receipt for Task B at a 32k budget (index 0.2 s once, selection about 40 ms); the demo's 12k budget keeps the top five:</p>
 <div class="receipt">31,821 / 32,000 tokens · 7 files from 218 · 2,408 commits indexed
 1 src/flask/cli.py      7,409 tok excerpt  anchor file; path matches "cli"; defines get_command…
 2 tests/test_cli.py     5,943 tok full     changed together with cli.py in 52 of its 172 commits; test file for cli.py
@@ -85,24 +85,24 @@
 <h2>5. Model setup</h2>
 <table>
 <tr><th>Role</th><th>Model (TrueForge name)</th><th>Where it ran</th><th>Approx. cost</th></tr>
-<tr><td>Primary</td><td><code>google-gemini/gemini-3-5-flash</code> (Gemini provider in TrueForge)</td><td>Google AI Studio API, free tier</td><td>$0 (free tier)</td></tr>
-<tr><td>Fallback (Relay)</td><td><code>groq/gpt-oss-120b</code> (custom OpenAI-compatible provider)</td><td>Groq API, free tier</td><td>$0 (free tier)</td></tr>
-<tr><td>Harness</td><td>TrueForge local mode (<code>npx @truefoundry/trueforge</code>)</td><td>Our laptop, SQLite</td><td>$0</td></tr>
+<tr><td>Primary</td><td><code>nvidia/kimi-k3-1-pro</code> (Moonshot Kimi K3.1 Pro, custom OpenAI-compatible provider)</td><td>NVIDIA build API (integrate.api.nvidia.com), free tier, reasoning effort "low"</td><td>$0 (free credits; the recorded demo used ~22 requests, ~0.4M input tokens)</td></tr>
+<tr><td>Fallback (Relay)</td><td><code>gemini/gemini-3-1-flash-lite</code> (Gemini 3.1 Flash-Lite via Google's OpenAI-compatible endpoint)</td><td>Google AI Studio API, free tier</td><td>$0 (free tier)</td></tr>
+<tr><td>Harness</td><td>TrueForge local mode (<code>npx @truefoundry/trueforge</code>)</td><td>Local machine, SQLite</td><td>$0</td></tr>
 </table>
-<p><b>Switching models:</b> providers live only in TrueForge (<code>npm run setup</code> loads them from a git-ignored <code>config/trueforge.local.json</code>; an example file is committed, keys never). The VS Code setting <code>kinfile.models</code> is the ordered fallback list; if it is empty, every model configured in TrueForge is used in order. Nothing in the code names a provider. <b>Relay:</b> a failed turn (provider error, bad key, unreachable endpoint, or no event within 45 s) is retried once after 1.5 s, then rerun on the next model automatically, with a notice. A failed model cools down for 5 minutes. Fallback happens only before any change was accepted, so the workspace is never half-changed.</p>
+<p><b>Switching models:</b> providers live only in TrueForge (<code>npm run setup</code> loads them from a git-ignored <code>config/trueforge.local.json</code>; an example file is committed, keys never). The VS Code setting <code>kinfile.models</code> is the ordered fallback list (empty = every model configured in TrueForge). Nothing in the code names a provider. <b>Relay:</b> a failed turn (provider error, bad key, unreachable endpoint, or no event within 120 s) is retried once after 1.5 s, then rerun on the next model automatically, with a visible notice; a failed model cools down for 5 minutes; fallback only happens before any change was accepted. <b>Token economy:</b> 12k-token context budget in the demo, reasoning effort "low", the scout limited to 3 tool calls, and TrueForge's own silent HTTP retries disabled (<code>MODEL_HTTP_MAX_RETRIES=0</code>) so a slow free endpoint is never paid twice. <code>scripts/model-relay.mjs</code> (local, optional) restores Gemini 3 "thought signatures" that TrueForge's OpenAI-compatible provider drops, and paces free-tier 429/503 responses.</p>
 
 <h2>6. Scorecard</h2>
 <table>
 <tr><th>Criterion</th><th>Video</th><th>Claim</th></tr>
-<tr><td>A1 Inline edit</td><td class="ts">0:12–0:50</td><td>Diff rendered in the editor; Accept/Reject on each of the 2 hunks; verified <code>False</code>.</td></tr>
-<tr><td>A2 Agent mode</td><td class="ts">1:05–2:45</td><td>One request; the agent finds and edits <code>cli.py</code>, <code>tests/test_cli.py</code> and <code>docs/cli.rst</code> unprompted; <code>pytest tests/test_cli.py -q</code> passes.</td></tr>
-<tr><td>A3 Streaming + cancel</td><td class="ts">0:15, 1:10, 3:40–3:55</td><td>Tokens stream live; Stop cancels the TrueForge turn at once; unreviewed hunks are discarded; <code>git status</code> clean.</td></tr>
-<tr><td>B1 Context assembly</td><td class="ts">1:10–1:25</td><td>Context Receipt: files, the reason for each (including "changed together with cli.py in 19 of its 172 commits"), tokens used / 32k budget.</td></tr>
-<tr><td>B2 Diff safety</td><td class="ts">0:30–1:00</td><td>Per-hunk review; nothing written before Accept; an applied hunk undone on screen (Ctrl+Alt+Z).</td></tr>
-<tr><td>B3 Resilience</td><td class="ts">3:00–3:40</td><td>Primary key invalid → retry → automatic switch to the second model with no user action; editor responsive; <code>git status</code> shows no change.</td></tr>
-<tr><td>B4 TrueForge depth</td><td class="ts">1:25–1:40, 2:45–3:00</td><td>MCP tools; approval events open the hunk review; scout subagent thread, deferred <code>call_tool</code> and tool calls visible in the TrueForge session.</td></tr>
-<tr><td>C1 Video</td><td class="ts">0:00–3:58</td><td>Tasks A, B, C in order, each verified on screen.</td></tr>
-<tr><td>C2 Write-up</td><td class="ts">—</td><td>This document: architecture, context strategy with measured numbers, model setup, trade-offs, limitations.</td></tr>
+<tr><td>A1 Inline edit</td><td class="ts">0:22–0:57</td><td>Ctrl+Alt+K, plain-language instruction; diff rendered in the editor with Accept/Reject per hunk (2 hunks); verified <code>False</code> at 0:52.</td></tr>
+<tr><td>A2 Agent mode</td><td class="ts">1:03–3:05</td><td>One request, no files named; the agent finds and edits <code>cli.py</code>, <code>tests/test_cli.py</code>, <code>docs/cli.rst</code>, <code>CHANGES.rst</code>; it runs the tests itself (57 passed), we re-verify at 2:39–2:56.</td></tr>
+<tr><td>A3 Streaming + cancel</td><td class="ts">0:33–0:41</td><td>Answer streams into the panel live from TrueForge events (model wait fast-forwarded and labelled). Stop/cancel is implemented (panel Stop, Ctrl+Alt+Backspace, <code>sessions.cancel</code>, unreviewed hunks discarded) but not shown in this video.</td></tr>
+<tr><td>B1 Context assembly</td><td class="ts">1:10–1:30</td><td>Context Receipt: 11,776 / 12,000 tokens, 5 files, each with its reason, e.g. <code>tests/test_cli.py</code> "changed together with src/flask/cli.py in 52 of its 172 commits".</td></tr>
+<tr><td>B2 Diff safety</td><td class="ts">0:41–1:03, 1:44–2:39</td><td>Per-hunk review; nothing written before Accept; applied change undone on screen with Ctrl+Alt+Z, <code>git status</code> clean at 1:01.</td></tr>
+<tr><td>B3 Resilience</td><td class="ts">3:05–3:31</td><td>Primary pointed at an unreachable endpoint → one retry → automatic switch to Gemini 3.1 Flash-Lite with no user action; diff shown; <code>git status</code> clean.</td></tr>
+<tr><td>B4 TrueForge depth</td><td class="ts">1:30–1:44, 2:56–3:05</td><td>Scout subagent; approvals open the hunk review; agent's own <code>run_command</code> approved in the panel; TrueForge session shows turns, deferred <code>call_tool</code> calls, parallel tool calls and the summary.</td></tr>
+<tr><td>C1 Video</td><td class="ts">0:00–3:38</td><td>Tasks A, B, C in order on Flask 3.1.3, each verified on screen; waiting time fast-forwarded with an on-screen label, never cut.</td></tr>
+<tr><td>C2 Write-up</td><td class="ts">—</td><td>Architecture, context strategy with measured numbers, model setup and cost, trade-offs, honest limitations.</td></tr>
 </table>
 
 <h2>7. Tools used</h2>
@@ -114,6 +114,7 @@
 <li>The symbol index is regex-based (fast, no native dependencies); it can miss unusual definitions. Edits use exact search/replace with a whitespace-tolerant fallback.</li>
 <li>If a model fails <i>after</i> some hunks were accepted, Kinfile stops with a clear message instead of switching models mid-change.</li>
 <li>Code Mode and Skills are unused: they need TrueForge's sandbox, which is optional for the fixed tasks.</li>
+<li>On free tiers the agent is slow (NVIDIA's free queue took ~1 min per step; Task B took ~20 min of model time, fast-forwarded in the video). Subagents may explore but not edit: Kinfile denies write tools on subagent threads.</li>
 <li><b>With another month:</b> tree-sitter symbols and a call graph as a fifth signal; learn signal weights from each repository's own history (replay past commits and measure recall); a "related tests" runner after each accepted hunk; upstream a model-fallback chain and approval-with-edited-arguments to TrueForge itself.</li>
 </ul>
 </body>

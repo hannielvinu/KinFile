@@ -82,6 +82,14 @@
       {
         "command": "kinfile.rejectNextHunk",
         "title": "Kinfile: Reject Next Hunk"
+      },
+      {
+        "command": "kinfile.approveCommand",
+        "title": "Kinfile: Approve Pending Command"
+      },
+      {
+        "command": "kinfile.denyCommand",
+        "title": "Kinfile: Deny Pending Command"
       }
     ],
     "keybindings": [
@@ -117,6 +125,12 @@
         "key": "ctrl+alt+n",
         "mac": "cmd+alt+n",
         "when": "kinfile.reviewing"
+      },
+      {
+        "command": "kinfile.approveCommand",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "kinfile.commandPending"
       }
     ],
     "configuration": {
@@ -137,7 +151,7 @@
         },
         "kinfile.contextBudgetTokens": {
           "type": "number",
-          "default": 32000,
+          "default": 16000,
           "description": "Token budget for automatically selected context."
         },
         "kinfile.compactionTokens": {
@@ -154,6 +168,18 @@
           "type": "number",
           "default": 8791,
           "description": "First port to try for the local MCP server that exposes editor tools to TrueForge."
+        },
+        "kinfile.reasoningEffort": {
+          "type": "string",
+          "default": "low",
+          "enum": [
+            "",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "description": "Reasoning effort sent to the model (\"\" = provider default). Low keeps token use and free-tier quota down."
         }
       }
     }

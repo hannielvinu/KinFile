@@ -10,6 +10,11 @@ import { Proposal, ReviewOutcome } from '../core/mcpServer';
 
 export const REVIEW_SCHEME = 'kinfile-review';
 
+/** Debug/automation trace (only when KINFILE_TRACE is set). */
+export function trace(o: Record<string, unknown>): void {
+  if (process.env.KINFILE_TRACE) require('fs').appendFileSync(process.env.KINFILE_TRACE, JSON.stringify({ t: Date.now(), ...o }) + '\n');
+}
+
 interface Item {
   p: Proposal;
   realUri: vscode.Uri;
@@ -91,6 +96,7 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
       const total = computeHunks(p.before, p.proposed).length;
       const item: Item = { p, realUri, reviewUri, proposed: p.proposed, accepted: 0, rejected: 0, total, resolve, marks: { removed: [], added: [], header: [] }, hunkLines: [], rendered: '' };
       this.items.set(reviewUri.toString(), item);
+      trace({ type: 'reviewOpen', path: p.path, hunks: total });
       await this.render(item);
       const doc = await vscode.workspace.openTextDocument(reviewUri);
       const lang = languageFor(p.path);
@@ -232,6 +238,7 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
     const key = item.reviewUri.toString();
     if (!this.items.has(key)) return;
     this.items.delete(key);
+    trace({ type: 'reviewDone', path: item.p.path, accepted: item.accepted, rejected: item.rejected });
     item.resolve({ accepted: item.accepted, rejected: item.rejected, finalText: '' });
     // Close the review tab and show the real file.
     for (const tab of vscode.window.tabGroups.all.flatMap(g => g.tabs)) {

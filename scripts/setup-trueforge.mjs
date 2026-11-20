@@ -32,7 +32,7 @@ for (const a of (await call('GET', '/agents')).data.filter(a => a.name === 'kinf
 for (const [i, manifest] of cfg.providers.entries()) {
   const m = structuredClone(manifest);
   if (m.auth?.api_key?.startsWith('$')) m.auth.api_key = process.env[m.auth.api_key.slice(1)] ?? '';
-  if (breakPrimary && i === 0) m.base_url = 'https://primary-model.unreachable.invalid/v1';
+  if (breakPrimary && i === 0) m.base_url = 'http://127.0.0.1:9/v1'; // closed port: an unreachable endpoint
   if (!m.auth?.api_key) delete m.auth;
   await call('PUT', '/settings/model-providers', { manifest: m });
   console.log(`provider ${m.name ?? m.type}: ${m.models.map(x => x.name).join(', ')}${breakPrimary && i === 0 ? '  <-- endpoint deliberately unreachable (Task C)' : ''}`);

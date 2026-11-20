@@ -87,7 +87,11 @@
         tools.set(e.id, t); add(t, threadParent(e.thread)); break;
       }
       case 'toolResult': {
-        const t = tools.get(e.id); if (!t) break;
+        let t = tools.get(e.id);
+        if (!t) {  // some providers only surface the call when its result arrives
+          t = el('details', 'tool'); t.appendChild(el('summary', '', '⚙ ' + (String(e.text || '').split('\n')[0].slice(0, 70) || 'tool call')));
+          tools.set(e.id, t); add(t, threadParent(e.thread));
+        }
         const pre = el('pre', 'result', e.text || '(empty)'); t.appendChild(pre); break;
       }
       case 'subagent': {
@@ -140,10 +144,16 @@
         card.appendChild(el('div', 'card-title', 'Run command?'));
         card.appendChild(el('pre', 'result', m.command));
         const row = el('div', 'row');
-        const ok = el('button', 'primary', 'Run'); const no = el('button', '', 'Deny');
+        const ok = el('button', 'primary', 'Run (Ctrl+Alt+Enter)'); const no = el('button', '', 'Deny');
+        card.dataset.id = m.id;
         const done = v => { vscode.postMessage({ type: 'command', id: m.id, ok: v }); row.remove(); card.appendChild(el('div', 'muted', v ? 'Approved' : 'Denied')); };
         ok.onclick = () => done(true); no.onclick = () => done(false);
         row.append(ok, no); card.appendChild(row); break;
+      }
+      case 'commandAnswered': {
+        const card = log.querySelector(`[data-id="${m.id}"]`);
+        if (card) { const row = card.querySelector('.row'); if (row) row.remove(); card.appendChild(el('div', 'muted', m.ok ? 'Approved' : 'Denied')); }
+        break;
       }
       case 'journal': {
         if (!m.label) break;

@@ -38,6 +38,17 @@ export class AgentPanel implements vscode.WebviewViewProvider {
 
   get running(): boolean { return !!this.run; }
 
+  /** Keyboard approval for the oldest pending "Run command?" card. */
+  answerCommand(ok: boolean): boolean {
+    const first = this.pendingCommands.entries().next();
+    if (first.done) return false;
+    const [id, resolve] = first.value;
+    this.pendingCommands.delete(id);
+    this.post({ type: 'commandAnswered', id, ok });
+    resolve(ok);
+    return true;
+  }
+
   async refreshModels(): Promise<void> {
     const s = this.svc();
     if (!s) return;
@@ -64,6 +75,7 @@ export class AgentPanel implements vscode.WebviewViewProvider {
         const r = this.pendingCommands.get(m.id);
         this.pendingCommands.delete(m.id);
         r?.(Boolean(m.ok));
+        if (!this.pendingCommands.size) vscode.commands.executeCommand('setContext', 'kinfile.commandPending', false);
         return;
       }
       case 'undo': return void vscode.commands.executeCommand('kinfile.undoLast');
@@ -120,12 +132,12 @@ export class AgentPanel implements vscode.WebviewViewProvider {
     const mentions = this.parseMentions(s, text);
     const active = vscode.window.activeTextEditor?.document;
     const activeRel = active?.uri.scheme === 'file' && active.uri.fsPath.startsWith(s.root) ? s.ws.rel(active.uri.fsPath) : undefined;
-    const pack = s.engine.assemble(text, { budgetTokens: cfg('contextBudgetTokens', 32000), mentionedFiles: mentions.files, mentionedSymbols: mentions.symbols, activeFile: activeRel });
+    const pack = s.engine.assemble(text, { budgetTokens: cfg('contextBudgetTokens', 16000), mentionedFiles: mentions.files, mentionedSymbols: mentions.symbols, activeFile: activeRel });
     this.post({ type: 'receipt', receipt: pack.receipt });
     s.log(`Context: ${pack.receipt.used}/${pack.receipt.budget} tokens, ${pack.receipt.entries.map(e => e.file).join(', ')}`);
 
     const message = `${text}\n\n---\n${pack.text}`;
-    const run = new KinfileRun(s.tf, model => agentSpec({ model, compactionTokens: cfg('compactionTokens', 60000) }), {
+    const run = new KinfileRun(s.tf, model => agentSpec({ model, compactionTokens: cfg('compactionTokens', 60000), reasoningEffort: cfg<string>('reasoningEffort', 'low') || undefined }), {
       models,
       retryBackoffMs: 1500,
       firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 120) * 1000,
@@ -135,6 +147,7 @@ export class AgentPanel implements vscode.WebviewViewProvider {
       approveCommand: command => new Promise<boolean>(resolve => {
         const id = String(Date.now() + Math.random());
         this.pendingCommands.set(id, resolve);
+        vscode.commands.executeCommand('setContext', 'kinfile.commandPending', true);
         this.post({ type: 'askCommand', id, command });
       }),
     }, { host: s, ws: s.ws, mcp: s.mcp });

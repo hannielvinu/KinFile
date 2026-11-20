@@ -19,8 +19,11 @@ const UPSTREAMS = {
   groq: 'https://api.groq.com',
   openai: 'https://api.openai.com',
   openrouter: 'https://openrouter.ai',
+  nvidia: 'https://integrate.api.nvidia.com',
 };
 const signatures = new Map(); // tool_call id -> thought_signature
+let requestCount = 0;
+const usageTotals = { input: 0, output: 0 };
 const FALLBACK_SIGNATURE = 'skip_thought_signature_validator'; // documented by Google for calls without a stored signature
 
 function restoreSignatures(body) {
@@ -34,6 +37,14 @@ function restoreSignatures(body) {
     });
   }
   return body;
+}
+
+function countUsage(obj) {
+  const u = obj?.usage;
+  if (!u) return;
+  usageTotals.input += u.prompt_tokens ?? 0;
+  usageTotals.output += u.completion_tokens ?? 0;
+  console.log(`  usage: +${u.prompt_tokens ?? 0} in / +${u.completion_tokens ?? 0} out (total ${usageTotals.input} in / ${usageTotals.output} out)`);
 }
 
 function remember(obj) {
@@ -57,6 +68,9 @@ http.createServer(async (req, res) => {
   if (body && name === 'gemini' && (req.headers['content-type'] ?? '').includes('json')) {
     try { body = Buffer.from(JSON.stringify(restoreSignatures(JSON.parse(body.toString('utf8'))))); } catch { /* forward as is */ }
   }
+  let modelName = '';
+  try { modelName = body ? JSON.parse(body.toString('utf8')).model ?? '' : ''; } catch { /* not JSON */ }
+  if (modelName) console.log(`request #${++requestCount} ${name} ${modelName}`);
   const headers = {};
   for (const h of ['authorization', 'content-type', 'accept', 'x-goog-api-key']) if (req.headers[h]) headers[h] = req.headers[h];
   try {
@@ -64,7 +78,7 @@ http.createServer(async (req, res) => {
     let up;
     for (let attempt = 0; ; attempt++) {
       up = await fetch(`${base}/${rest.join('/')}`, { method: req.method, headers, body });
-      if (![429, 503].includes(up.status) || attempt >= 5) break;
+      if (![429, 503].includes(up.status) || attempt >= 2) break;
       const text = await up.text();
       const m = text.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
       const waitS = Math.min(60, m ? Number(m[1]) + 1 : 8 * (attempt + 1));
@@ -72,23 +86,29 @@ http.createServer(async (req, res) => {
       console.log(`${name}: ${up.status}, retrying in ${waitS}s`);
       await new Promise(r => setTimeout(r, waitS * 1000));
     }
+    if (up.status >= 400) {
+      const text = await up.text();
+      console.log(`  -> ${up.status} ${text.replace(/\s+/g, ' ').slice(0, 400)}`);
+      res.writeHead(up.status, { 'content-type': up.headers.get('content-type') ?? 'application/json' }).end(text);
+      return;
+    }
+    console.log(`  -> ${up.status}`);
     res.writeHead(up.status, { 'content-type': up.headers.get('content-type') ?? 'application/json' });
     if (!up.body) { res.end(); return; }
     const decoder = new TextDecoder();
     let buf = '';
     for await (const c of up.body) {
       res.write(c);
-      if (name !== 'gemini') continue;
       buf += decoder.decode(c, { stream: true });
       let i;
       while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i).trim();
         buf = buf.slice(i + 1);
         const data = line.startsWith('data:') ? line.slice(5).trim() : line.startsWith('{') ? line : '';
-        if (data && data !== '[DONE]') { try { remember(JSON.parse(data)); } catch { /* partial JSON body */ } }
+        if (data && data !== '[DONE]') { try { const o = JSON.parse(data); countUsage(o); if (name === 'gemini') remember(o); } catch { /* partial JSON body */ } }
       }
     }
-    if (name === 'gemini' && buf.trim().startsWith('{')) { try { remember(JSON.parse(buf)); } catch { /* ignore */ } }
+    if (buf.trim().startsWith('{')) { try { const o = JSON.parse(buf); countUsage(o); if (name === 'gemini') remember(o); } catch { /* ignore */ } }
     res.end();
   } catch (e) {
     if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json' });

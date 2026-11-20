@@ -1,10 +1,28 @@
 {
   "trueforgeUrl": "http://localhost:8790",
   "models": [
-    "gemini/gemini-3-1-flash-lite",
-    "groq/gpt-oss-120b"
+    "nvidia/kimi-k3-1-pro",
+    "gemini/gemini-3-1-flash-lite"
   ],
   "providers": [
+    {
+      "type": "custom",
+      "name": "nvidia",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "auth": {
+        "api_key": "$NVIDIA_API_KEY"
+      },
+      "models": [
+        {
+          "model_id": "moonshotai/kimi-k3.1-pro",
+          "name": "kimi-k3-1-pro",
+          "properties": {
+            "context_length": 262144,
+            "max_output_tokens": 32768
+          }
+        }
+      ]
+    },
     {
       "type": "custom",
       "name": "gemini",
