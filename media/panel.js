@@ -134,6 +134,7 @@
       case 'running': send.hidden = m.running; stop.hidden = !m.running; break;
       case 'status': add(el('div', 'meta', m.text)); break;
       case 'insert': input.value += m.text; input.focus(); break;
+      case 'focusInput': setTimeout(() => input.focus(), 50); break;
       case 'askCommand': {
         const card = add(el('div', 'card approval pending'));
         card.appendChild(el('div', 'card-title', 'Run command?'));

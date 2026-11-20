@@ -1,7 +1,7 @@
 // Load model providers and the Kinfile agent definition into a running TrueForge.
 //   cp config/trueforge.example.json config/trueforge.local.json   # add your keys (git-ignored)
 //   npm run setup
-// Task C helpers:  npm run setup -- --break-primary   (puts an invalid key on the primary provider)
+// Task C helpers:  npm run demo:break-primary   (points the primary provider at an unreachable endpoint)
 //                  npm run setup                      (restores the real keys)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,22 +25,28 @@ catch { console.error(`TrueForge is not reachable at ${base}. Start it first: np
 
 if (cfgPath.endsWith('example.json')) console.warn('Using config/trueforge.example.json (no real keys). Copy it to config/trueforge.local.json and add your keys.');
 
+// A saved agent pins its model, and TrueForge refuses to change a provider whose model is in use,
+// so remove the Kinfile agent first and load it again at the end.
+for (const a of (await call('GET', '/agents')).data.filter(a => a.name === 'kinfile')) await call('DELETE', `/agents/${a.id}`);
+
 for (const [i, manifest] of cfg.providers.entries()) {
   const m = structuredClone(manifest);
   if (m.auth?.api_key?.startsWith('$')) m.auth.api_key = process.env[m.auth.api_key.slice(1)] ?? '';
-  if (breakPrimary && i === 0) m.auth = { api_key: 'invalid-key-for-task-c' };
+  if (breakPrimary && i === 0) m.base_url = 'https://primary-model.unreachable.invalid/v1';
   if (!m.auth?.api_key) delete m.auth;
   await call('PUT', '/settings/model-providers', { manifest: m });
-  console.log(`provider ${m.name ?? m.type}: ${m.models.map(x => x.name).join(', ')}${breakPrimary && i === 0 ? '  <-- key deliberately invalid (Task C)' : ''}`);
+  console.log(`provider ${m.name ?? m.type}: ${m.models.map(x => x.name).join(', ')}${breakPrimary && i === 0 ? '  <-- endpoint deliberately unreachable (Task C)' : ''}`);
 }
 
 const models = (await call('GET', '/models')).data.map(m => m.name);
 console.log('TrueForge models:', models.join(', '));
 
+// The agent references the editor MCP server; register its default address (the extension re-registers
+// the actual port every time it starts).
+await call('PUT', '/settings/mcp-servers', { manifest: { type: 'remote', name: 'kinfile-editor', url: 'http://127.0.0.1:8791/mcp', description: 'Kinfile: editor tools for the open VS Code workspace (read, search, related files, propose edits, run commands).' } });
+
 const agent = JSON.parse(fs.readFileSync(path.join(root, 'agent', 'kinfile.agent.json'), 'utf8'));
-agent.manifest.model.name = cfg.models?.[0] ?? models[0] ?? agent.manifest.model.name;
-const list = (await call('GET', '/agents')).data;
-const existing = list.find(a => a.name === agent.name);
-if (existing) await call('PUT', `/agents/${existing.id}`, agent); else await call('POST', '/agents', agent);
+agent.manifest.model.name = (cfg.models ?? []).find(m => models.includes(m)) ?? models[0] ?? agent.manifest.model.name;
+await call('POST', '/agents', agent);
 console.log(`agent "${agent.name}" loaded (model ${agent.manifest.model.name}).`);
 console.log(`\nIn VS Code settings set:  "kinfile.models": ${JSON.stringify(cfg.models ?? models)}`);

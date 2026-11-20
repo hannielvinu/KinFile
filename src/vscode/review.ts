@@ -70,6 +70,8 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
       vscode.commands.registerCommand('kinfile.acceptAll', (k?: string) => this.decideAll(k, true)),
       vscode.commands.registerCommand('kinfile.rejectAll', (k?: string) => this.decideAll(k, false)),
       vscode.commands.registerCommand('kinfile.undoLast', () => this.undoLast()),
+      vscode.commands.registerCommand('kinfile.acceptNextHunk', () => this.decideNext(true)),
+      vscode.commands.registerCommand('kinfile.rejectNextHunk', () => this.decideNext(false)),
       this.status,
     );
   }
@@ -118,8 +120,8 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
     ];
     item.hunkLines.forEach(({ line }, i) => {
       const r = new vscode.Range(line, 0, line, 0);
-      lenses.push(new vscode.CodeLens(r, { title: `$(check) Accept hunk ${i + 1}/${n}`, command: 'kinfile.acceptHunk', arguments: [k, line] }));
-      lenses.push(new vscode.CodeLens(r, { title: '$(x) Reject', command: 'kinfile.rejectHunk', arguments: [k, line] }));
+      lenses.push(new vscode.CodeLens(r, { title: `$(check) Accept hunk ${i + 1}/${n}${i === 0 ? ' (Ctrl+Alt+Y)' : ''}`, command: 'kinfile.acceptHunk', arguments: [k, line] }));
+      lenses.push(new vscode.CodeLens(r, { title: i === 0 ? '$(x) Reject (Ctrl+Alt+N)' : '$(x) Reject', command: 'kinfile.rejectHunk', arguments: [k, line] }));
     });
     return lenses;
   }
@@ -188,6 +190,15 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
     const left = await this.render(item);
     if (left.length === 0) this.finish(item);
     this.updateStatus();
+  }
+
+  /** Keyboard review: act on the first remaining hunk of the focused (or oldest) proposal. */
+  private async decideNext(accept: boolean): Promise<void> {
+    const activeKey = vscode.window.activeTextEditor?.document.uri.toString();
+    const item = (activeKey && this.items.get(activeKey)) || [...this.items.values()][0];
+    const first = item?.hunkLines[0];
+    if (!item || !first) { vscode.window.setStatusBarMessage('Kinfile: no hunk to review', 2000); return; }
+    await this.decide(item.reviewUri.toString(), first.line, accept);
   }
 
   private async decideAll(key: string | undefined, accept: boolean): Promise<void> {
@@ -264,6 +275,7 @@ export class ReviewController implements vscode.TextDocumentContentProvider, vsc
 
   private updateStatus(): void {
     const n = [...this.items.values()].reduce((a, i) => a + i.hunkLines.length, 0);
+    vscode.commands.executeCommand('setContext', 'kinfile.reviewing', n > 0);
     if (n > 0) {
       this.status.text = `$(diff) Kinfile: ${n} hunk${n === 1 ? '' : 's'} to review`;
       this.status.command = undefined;

@@ -128,7 +128,7 @@ export class AgentPanel implements vscode.WebviewViewProvider {
     const run = new KinfileRun(s.tf, model => agentSpec({ model, compactionTokens: cfg('compactionTokens', 60000) }), {
       models,
       retryBackoffMs: 1500,
-      firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 45) * 1000,
+      firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 120) * 1000,
     }, {
       emit: (e: UiEvent) => this.post({ type: 'event', e }),
       review: p => s.review(p),

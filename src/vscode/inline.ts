@@ -56,7 +56,7 @@ export async function inlineEdit(svc: KinfileService, panel: AgentPanel, presetI
   panel.post({ type: 'user', text: `Inline edit · ${rel}:${range.start.line + 1}-${range.end.line + 1}\n${instruction}` });
   let streamed = '';
   await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Kinfile', cancellable: true }, async (progress, token) => {
-    const run = new KinfileRun(svc.tf, inlineSpec, { models, retryBackoffMs: 1500, firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 45) * 1000 }, {
+    const run = new KinfileRun(svc.tf, inlineSpec, { models, retryBackoffMs: 1500, firstEventTimeoutMs: cfg('firstResponseTimeoutSeconds', 120) * 1000 }, {
       emit: (e: UiEvent) => {
         panel.post({ type: 'event', e });
         if (e.kind === 'model') progress.report({ message: `asking ${e.model}…` });

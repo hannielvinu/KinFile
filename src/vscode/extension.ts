@@ -20,7 +20,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('kinfile.inlineEdit', (instruction?: unknown) => (service ? inlineEdit(service, panel, typeof instruction === 'string' ? instruction : undefined) : vscode.window.showWarningMessage('Kinfile: open a folder first.'))),
     // Same as typing in the panel; also handy for scripted demos and tests.
     vscode.commands.registerCommand('kinfile.runAgent', async (text?: unknown) => { await panel.show(); return panel.startRun(typeof text === 'string' ? text : ''); }),
-    vscode.commands.registerCommand('kinfile.openAgent', () => panel.show()),
+    vscode.commands.registerCommand('kinfile.openAgent', async () => { await panel.show(); panel.post({ type: 'focusInput' }); }),
     vscode.commands.registerCommand('kinfile.stop', async () => {
       const a = await cancelInline();
       if (panel.running) await panel.stop();

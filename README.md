@@ -54,7 +54,13 @@ Put your keys in `config/trueforge.local.json`, or keep `"$GEMINI_API_KEY"` / `"
 npm run setup
 ```
 
-This registers the model providers in TrueForge and loads the agent definition `agent/kinfile.agent.json`. Any provider TrueForge supports works (OpenAI, Anthropic, Gemini, Fireworks, Together, an AI gateway, or a local OpenAI-compatible server such as Ollama). The extension is not tied to one provider; you can also add models in the TrueForge UI at http://localhost:8790.
+This registers the model providers in TrueForge and loads the agent definition `agent/kinfile.agent.json`.
+
+**Gemini 3 note:** Gemini 3 models require each tool call's *thought signature* to be sent back on the next request, and TrueForge's OpenAI-compatible provider drops it. The example config therefore points Gemini at a small local relay that restores the signatures and retries free-tier 429/503 responses. Run it next to TrueForge:
+
+```bash
+node scripts/model-relay.mjs
+``` Any provider TrueForge supports works (OpenAI, Anthropic, Gemini, Fireworks, Together, an AI gateway, or a local OpenAI-compatible server such as Ollama). The extension is not tied to one provider; you can also add models in the TrueForge UI at http://localhost:8790.
 
 ### 3. Run the extension
 
@@ -73,7 +79,7 @@ code --install-extension kinfile-0.1.0.vsix
 In VS Code settings:
 
 ```json
-"kinfile.models": ["google-gemini/gemini-3-5-flash", "groq/gpt-oss-120b"]
+"kinfile.models": ["gemini/gemini-3-1-flash-lite", "groq/gpt-oss-120b"]
 ```
 
 The first model is primary; the next ones take over automatically. If the list is empty, Kinfile uses every model configured in TrueForge, in TrueForge's order. Switching models needs no code change: edit this list, or the providers in TrueForge.
@@ -185,6 +191,8 @@ This regenerates `agent/*.json` from the source.
 - The symbol index is regex-based (fast, no native deps) rather than a full parser.
 - If a model fails *after* the user has accepted some hunks, Kinfile does not silently switch models mid-change; it stops with a clear message.
 - Code Mode and Skills are not used (they need TrueForge's sandbox).
+- Free-tier model quotas (Gemini, Groq) throttle long agent runs; a paid key or a gateway is more reliable for Task B.
+- Subagents may explore but not edit: Kinfile denies write tools on subagent threads so only the main agent proposes changes.
 
 ## License
 

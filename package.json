@@ -74,6 +74,14 @@
       {
         "command": "kinfile.refreshModels",
         "title": "Kinfile: Refresh Models from TrueForge"
+      },
+      {
+        "command": "kinfile.acceptNextHunk",
+        "title": "Kinfile: Accept Next Hunk"
+      },
+      {
+        "command": "kinfile.rejectNextHunk",
+        "title": "Kinfile: Reject Next Hunk"
       }
     ],
     "keybindings": [
@@ -97,6 +105,18 @@
         "command": "kinfile.undoLast",
         "key": "ctrl+alt+z",
         "mac": "cmd+alt+z"
+      },
+      {
+        "command": "kinfile.acceptNextHunk",
+        "key": "ctrl+alt+y",
+        "mac": "cmd+alt+y",
+        "when": "kinfile.reviewing"
+      },
+      {
+        "command": "kinfile.rejectNextHunk",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "kinfile.reviewing"
       }
     ],
     "configuration": {
@@ -127,7 +147,7 @@
         },
         "kinfile.firstResponseTimeoutSeconds": {
           "type": "number",
-          "default": 45,
+          "default": 120,
           "description": "If a model sends nothing within this time, Kinfile treats it as failed and falls back."
         },
         "kinfile.mcpPort": {

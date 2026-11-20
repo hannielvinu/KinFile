@@ -124,7 +124,7 @@ export class KinfileRun {
     let sawProgress = false;
 
     // Watchdog: a provider that hangs is treated like a failed one.
-    const timeoutMs = this.relay.firstEventTimeoutMs ?? 45_000;
+    const timeoutMs = this.relay.firstEventTimeoutMs ?? 120_000;
     let watchdogFired = false;
     const watchdog = setTimeout(() => {
       if (!sawProgress && !this.cancelled) { watchdogFired = true; this.tf.cancel(sessionId).catch(() => {}); }
@@ -228,6 +228,12 @@ export class KinfileRun {
     let { name, args } = unwrapCall(call);
     const send = (allow: boolean, reason?: string) => this.tf.sendApproval(sessionId, turnId, thread, toolCallId, allow, reason).catch(e => this.hooks.emit({ kind: 'relay', level: 'error', text: `Approval failed: ${e?.message ?? e}` }));
 
+    if (WRITE_TOOLS.includes(name) && thread !== 'main') {
+      // Roles stay clean: subagents explore and report; only the main agent proposes edits.
+      this.hooks.emit({ kind: 'approval', id: toolCallId, tool: name, summary: `${args.path ?? ''}: denied, only the main agent may edit (subagents report findings)`, state: 'rejected' });
+      await send(false, 'Subagents must not edit files. Return the files, functions and the exact change you recommend to the main agent instead.');
+      return;
+    }
     if (WRITE_TOOLS.includes(name) && this.ctx) {
       let p: Proposal;
       try {
